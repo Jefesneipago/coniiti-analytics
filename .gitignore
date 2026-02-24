@@ -1,4 +1,15 @@
+#Entornos Virtuales
 venvhpz400/
+venv/
+
+
+# Archivos de Python compilados
 __pycache__/
+
+# Archivos de Jupyter Notebook
 .ipynb_checkpoints/
+
+# Archivos de configuración y entorno
 .env
+
+
