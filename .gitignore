@@ -8,8 +8,21 @@ __pycache__/
 
 # Archivos de Jupyter Notebook
 .ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+**/.ipynb_checkpoints
 
 # Archivos de configuración y entorno
 .env
 
+# VS Code
+.vscode/
+.history/
+
+# Datos (¡importante! no subir datos grandes a git)
+*.csv
+*.xlsx
+*.parquet
+*.pkl
+/data/
+/datos/
 
