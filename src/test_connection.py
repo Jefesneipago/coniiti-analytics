@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 
 user = "coniitic_registro"
 password = "G3!+GUyN-1bXP+]x"   # XAMPP normalmente no tiene contraseña
-host = "localhost"
+host = "coniiti.com"
 database = "coniitic_registro"
 
 engine = create_engine(
