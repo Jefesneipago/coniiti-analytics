@@ -156,8 +156,8 @@ tasa = asistentes / total if total > 0 else 0
 participantes = df['num_documento'].nunique()
 
 # KPI: Participantes UCATOLICA
-ucatolica_count = df[df['ucatolica'] == 'Si'].shape[0] if 'ucatolica' in df.columns else 0
-no_ucatolica_count = df[df['ucatolica'] == 'No'].shape[0] if 'ucatolica' in df.columns else 0
+ucatolica_count = df[df['ucatolica'] == 'S'].shape[0] if 'ucatolica' in df.columns else 0
+no_ucatolica_count = df[df['ucatolica'] == 'N'].shape[0] if 'ucatolica' in df.columns else 0
 
 # KPI: Distribución por género
 genero_counts = df['genero'].value_counts()
