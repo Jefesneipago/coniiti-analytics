@@ -56,19 +56,61 @@ def load_data():
 df = load_data()
 
 # ==============================
-# ETL / TRANSFORMACIÓN
+# ETL / TRANSFORMACIÓN ORIGINAL SOLO MUESTRA DIAS DE ANTICIPACIÓN
 # ==============================
+
+#df['fecha_registro'] = pd.to_datetime(df['fecha_registro'], errors='coerce')
+#df['fecha_uso'] = pd.to_datetime(df['fecha_uso'], errors='coerce')
+
+#df['dias_anticipacion'] = (df['fecha_uso'] - df['fecha_registro']).dt.days
+
+#df['programa'] = df['programa'].fillna('No especificado')
+#df['rol'] = df['rol'].fillna('No especificado')
+#df['profesion'] = df['profesion'].fillna('No especificado')
+#df['genero'] = df['genero'].fillna('No especificado')
+#df['ucatolica'] = df['ucatolica'].fillna('No')
+
+# ==============================
+# ETL / TRANSFORMACIÓN MEJORADO CON ANTICIPACIÓN EN DIAS, HORAS, MINUTOS Y FORMATO LEGIBLE
+# ==============================
+
+# Convertir a datetime (manteniendo hora si existe)
 df['fecha_registro'] = pd.to_datetime(df['fecha_registro'], errors='coerce')
 df['fecha_uso'] = pd.to_datetime(df['fecha_uso'], errors='coerce')
 
+# 1. Diferencia exacta en horas (con decimales)
+df['horas_anticipacion'] = (df['fecha_uso'] - df['fecha_registro']).dt.total_seconds() / 3600
+
+# 2. Diferencia exacta en minutos
+df['minutos_anticipacion'] = (df['fecha_uso'] - df['fecha_registro']).dt.total_seconds() / 60
+
+# 3. Diferencia exacta en segundos
+df['segundos_anticipacion'] = (df['fecha_uso'] - df['fecha_registro']).dt.total_seconds()
+
+# 4. Desglose en días, horas, minutos y segundos
 df['dias_anticipacion'] = (df['fecha_uso'] - df['fecha_registro']).dt.days
 
+# Crear una columna con el tiempo formateado (DD:HH:MM:SS)
+def formatear_tiempo(fecha_inicio, fecha_fin):
+    if pd.isna(fecha_inicio) or pd.isna(fecha_fin):
+        return None
+    delta = fecha_fin - fecha_inicio
+    dias = delta.days
+    horas, resto = divmod(delta.seconds, 3600)
+    minutos, segundos = divmod(resto, 60)
+    return f"{dias}d {horas:02d}h {minutos:02d}m {segundos:02d}s"
+
+df['tiempo_formateado'] = df.apply(
+    lambda row: formatear_tiempo(row['fecha_registro'], row['fecha_uso']), 
+    axis=1
+)
+
+# Rellenar valores nulos (igual que antes)
 df['programa'] = df['programa'].fillna('No especificado')
 df['rol'] = df['rol'].fillna('No especificado')
 df['profesion'] = df['profesion'].fillna('No especificado')
 df['genero'] = df['genero'].fillna('No especificado')
 df['ucatolica'] = df['ucatolica'].fillna('No')
-
 # ==============================
 # FILTROS
 # ==============================
@@ -148,7 +190,7 @@ st.markdown("### Sistema de analítica para toma de decisiones")
 st.markdown(f"**Última actualización:** {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')} | **Total registros:** {len(df):,}")
 
 # ==============================
-# KPIs MEJORADOS
+# KPIs MEJORADOS 
 # ==============================
 total = len(df)
 asistentes = df['qr_validado'].sum() if 'qr_validado' in df.columns else 0
@@ -156,8 +198,8 @@ tasa = asistentes / total if total > 0 else 0
 participantes = df['num_documento'].nunique()
 
 # KPI: Participantes UCATOLICA
-ucatolica_count = df[df['ucatolica'] == 'Si'].shape[0] if 'ucatolica' in df.columns else 0
-no_ucatolica_count = df[df['ucatolica'] == 'No'].shape[0] if 'ucatolica' in df.columns else 0
+ucatolica_count = df[df['ucatolica'] == 'S'].shape[0] if 'ucatolica' in df.columns else 0
+no_ucatolica_count = df[df['ucatolica'] == 'N'].shape[0] if 'ucatolica' in df.columns else 0
 
 # KPI: Distribución por género
 genero_counts = df['genero'].value_counts()
@@ -177,7 +219,7 @@ col6.metric("🌍 Externos", f"{no_ucatolica_count:,}", delta=f"{no_ucatolica_co
 # ==============================
 # TOP 10 ASISTENTES MÁS ACTIVOS
 # ==============================
-st.subheader("🏆 Top 10 - Asistentes más activos")
+st.subheader("🏆 Top 10 - Asistentes con más recurrencia (Mayor asistencia)")
 
 # Contar conferencias asistidas por persona
 asistentes_top = df[df['qr_validado'] == 1].groupby(['num_documento', 'nombres']).agg({
@@ -406,31 +448,175 @@ with col_pais2:
 # ==============================
 # ANTICIPACIÓN
 # ==============================
+# ==============================
+# ANTICIPACIÓN - VERSIÓN MEJORADA
+# ==============================
 st.subheader("⏱️ Anticipación vs Asistencia")
+
+# Selector de unidad de tiempo para el usuario
+unidad_tiempo = st.radio(
+    "Selecciona la unidad de tiempo:",
+    ["Días", "Horas", "Minutos", "Formato legible"],
+    horizontal=True
+)
 
 col_antic1, col_antic2 = st.columns(2)
 
 with col_antic1:
+    # Boxplot adaptado según la unidad seleccionada
+    if unidad_tiempo == "Días":
+        y_var = "dias_anticipacion"
+        titulo_y = "Días de anticipación"
+    elif unidad_tiempo == "Horas":
+        y_var = "horas_anticipacion"
+        titulo_y = "Horas de anticipación"
+    elif unidad_tiempo == "Minutos":
+        y_var = "minutos_anticipacion"
+        titulo_y = "Minutos de anticipación"
+    else:  # Formato legible
+        y_var = "dias_anticipacion"  # Usamos días para el boxplot
+        titulo_y = "Días de anticipación"
+    
     fig_box = px.box(
         df,
         x="qr_validado",
-        y="dias_anticipacion",
-        title="Días de anticipación por tipo de participación",
-        labels={"qr_validado": "Asistió", "dias_anticipacion": "Días de anticipación"}
+        y=y_var,
+        title=f"📊 Anticipación por tipo de participación ({unidad_tiempo})",
+        labels={"qr_validado": "Asistió", y_var: titulo_y},
+        color="qr_validado",  # Añade color para mejor visualización
+        points="all"  # Muestra todos los puntos para ver outliers
     )
     st.plotly_chart(fig_box, use_container_width=True)
+    
+    # Mostrar estadísticas detalladas
+    with st.expander("📈 Ver estadísticas detalladas"):
+        col_est1, col_est2 = st.columns(2)
+        
+        with col_est1:
+            st.metric(
+                "Media (asistieron)", 
+                f"{df[df['qr_validado']==True][y_var].mean():.2f} {unidad_tiempo.lower()}"
+            )
+            st.metric(
+                "Mediana (asistieron)",
+                f"{df[df['qr_validado']==True][y_var].median():.2f} {unidad_tiempo.lower()}"
+            )
+        
+        with col_est2:
+            st.metric(
+                "Media (no asistieron)",
+                f"{df[df['qr_validado']==False][y_var].mean():.2f} {unidad_tiempo.lower()}"
+            )
+            st.metric(
+                "Mediana (no asistieron)",
+                f"{df[df['qr_validado']==False][y_var].median():.2f} {unidad_tiempo.lower()}"
+            )
 
 with col_antic2:
-    # Histograma de anticipación
-    fig_hist = px.histogram(
-        df,
-        x="dias_anticipacion",
-        color="qr_validado",
-        title="Distribución de días de anticipación",
-        labels={"dias_anticipacion": "Días de anticipación", "count": "Frecuencia"},
-        nbins=30
-    )
+    # Histograma adaptado
+    if unidad_tiempo == "Formato legible":
+        # Para formato legible, usamos un histograma con colores por categoría
+        fig_hist = px.histogram(
+            df,
+            x="tiempo_formateado",
+            color="qr_validado",
+            title="📊 Distribución del tiempo de anticipación",
+            labels={"tiempo_formateado": "Tiempo de anticipación (formato DD:HH:MM:SS)", "count": "Frecuencia"},
+            category_orders={"tiempo_formateado": sorted(df['tiempo_formateado'].dropna().unique())}
+        )
+        # Rotar etiquetas para mejor legibilidad
+        fig_hist.update_layout(xaxis_tickangle=-45)
+    else:
+        fig_hist = px.histogram(
+            df,
+            x=y_var,
+            color="qr_validado",
+            title=f"📊 Distribución de anticipación ({unidad_tiempo})",
+            labels={y_var: titulo_y, "count": "Frecuencia"},
+            nbins=30,
+            opacity=0.7  # Para ver superposición
+        )
+    
     st.plotly_chart(fig_hist, use_container_width=True)
+
+# Sección adicional: Tabla de resumen
+st.subheader("📋 Resumen de anticipación por tipo")
+
+# Preparar datos para la tabla
+resumen_anticipacion = df.groupby('qr_validado').agg({
+    'dias_anticipacion': ['mean', 'median', 'std', 'min', 'max'],
+    'horas_anticipacion': ['mean', 'median'],
+    'minutos_anticipacion': ['mean', 'median'],
+    'tiempo_formateado': lambda x: x.mode()[0] if len(x.mode()) > 0 else 'N/A'  # Moda del formato legible
+}).round(2)
+
+# Renombrar índices para mejor presentación
+resumen_anticipacion.columns = ['_'.join(col).strip() for col in resumen_anticipacion.columns.values]
+resumen_anticipacion.index = ['No asistió', 'Asistió']
+
+st.dataframe(
+    resumen_anticipacion,
+    use_container_width=True,
+    column_config={
+        "dias_anticipacion_mean": st.column_config.NumberColumn("Días (media)", format="%.2f"),
+        "dias_anticipacion_median": st.column_config.NumberColumn("Días (mediana)", format="%.2f"),
+        "horas_anticipacion_mean": st.column_config.NumberColumn("Horas (media)", format="%.2f"),
+        "minutos_anticipacion_mean": st.column_config.NumberColumn("Minutos (media)", format="%.2f"),
+    }
+)
+
+# Sección de análisis de casos extremos
+with st.expander("🔍 Análisis de casos especiales"):
+    col_ext1, col_ext2 = st.columns(2)
+    
+    with col_ext1:
+        # Casos con anticipación negativa (uso antes del registro)
+        anticipacion_negativa = df[df['horas_anticipacion'] < 0]
+        if len(anticipacion_negativa) > 0:
+            st.warning(f"⚠️ **{len(anticipacion_negativa)}** registros tienen fecha de uso anterior al registro")
+            st.dataframe(
+                anticipacion_negativa[['fecha_registro', 'fecha_uso', 'horas_anticipacion', 'tiempo_formateado']].head(),
+                use_container_width=True
+            )
+    
+    with col_ext2:
+        # Casos con anticipación muy alta (outliers)
+        q99 = df['horas_anticipacion'].quantile(0.99)
+        anticipacion_muy_alta = df[df['horas_anticipacion'] > q99]
+        if len(anticipacion_muy_alta) > 0:
+            st.info(f"📌 **{len(anticipacion_muy_alta)}** registros están en el top 1% de anticipación")
+            st.dataframe(
+                anticipacion_muy_alta[['fecha_registro', 'fecha_uso', 'horas_anticipacion', 'tiempo_formateado']].head(),
+                use_container_width=True
+            )
+
+#Original
+#st.subheader("⏱️ Anticipación vs Asistencia")
+
+#col_antic1, col_antic2 = st.columns(2)
+
+#with col_antic1:
+#   fig_box = px.box(
+#        df,
+#        x="qr_validado",
+#        y="dias_anticipacion",
+#        title="Días de anticipación por tipo de participación",
+#        labels={"qr_validado": "Asistió", "dias_anticipacion": "Días de anticipación"}
+#    )
+#    st.plotly_chart(fig_box, use_container_width=True)
+
+#with col_antic2:
+    # Histograma de anticipación
+#    fig_hist = px.histogram(
+#       df,
+#      x="dias_anticipacion",
+#        color="qr_validado",
+#        title="Distribución de días de anticipación",
+#        labels={"dias_anticipacion": "Días de anticipación", "count": "Frecuencia"},
+#        nbins=30
+#    )
+#    st.plotly_chart(fig_hist, use_container_width=True)
+
 
 # ==============================
 # MULTI EVENTO
@@ -469,7 +655,7 @@ st.plotly_chart(fig_multi, use_container_width=True)
 # ==============================
 # TABLA DE DATOS MEJORADA
 # ==============================
-st.subheader("📋 Vista detallada de datos")
+#st.subheader("📋 Vista detallada de datos")
 
 # Selector de cantidad de filas
 num_filas = st.selectbox("Mostrar filas:", [50, 100, 200, 500, 1000, len(df)], index=0)
