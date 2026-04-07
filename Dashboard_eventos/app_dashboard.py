@@ -678,7 +678,7 @@ st.dataframe(
 )
 
 # ==============================
-# EXPORTAR DATOS
+# Función para EXPORTAR DATOS 
 # ==============================
 st.sidebar.divider()
 st.sidebar.markdown("### 📥 Exportar datos")
